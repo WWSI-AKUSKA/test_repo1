@@ -1,0 +1,51 @@
+name: Autograding Tests
+
+on:
+  - push
+  - workflow_dispatch
+  - repository_dispatch
+
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    # Nie uruchamiaj pętli zwrotnej, gdy reporter sam „odbija” wynik do Classroom
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+      - name: Checkout code
+      uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Jeżeli solution ma inną nazwę/ścieżkę, podmień tutaj:
+      - name: Restore
+        run: dotnet restore ./src/Demo/Demo.sln
+
+      - name: Build
+        run: dotnet build ./src/Demo/Demo.sln --configuration Release --no-restore
+
+      # Uruchamiamy testy z verbose'owym logiem konsolowym, żeby w output było widać
+      # które testy przeszły/padły (nazwy metod, liczby passed/failed).
+      - name: Run unit tests
+        id: run-tests
+        run: |
+          dotnet test ./src/Demo/Demo.sln \
+            --configuration Release \
+            --no-build \
+            -l "console;verbosity=detailed" \
+            -l "trx;LogFileName=test_results.trx"
+
+      # Reporter Classroom zbierze status tego joba i przypisze punkty w Classroom.
+      # (Tu jeden „runner”: run-tests. Jeśli chcesz wiele „sekcji punktowych”,
+      # dodaj kolejne kroki testów z różnymi id i wpisz je przecinkiem.)
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        with:
+          runners: run-tests
